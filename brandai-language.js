@@ -1,50 +1,65 @@
+/**
+ * Sample code accessing a brand.ai design library and analyzing text against the language definition
+ * in the given library.
+ * To minimize dependencies this file contains a few concerns
+ *    http fetching: fetchDesignLibrary()
+ *    building renderable results: getMatchesWithSurroundingText()
+ *    text analysis: getIssues()
+ * */
 var brandai = brandai || {};
 
-brandai.Language = function(organizationName, styleguideName) {
+brandai.Language = function(organizationName, libraryName, libraryKey) {
   this.organizationName = organizationName;
-  this.styleguideName = styleguideName;
-  this.styleguide = null;
+  this.libraryName = libraryName;
+  // private design libraries can be shared using a key
+  this.key = libraryKey;
+  this.library = null;
 
   var _analyze = function(text, callback) {
-    return fetchDesignLibrary(function(err, styleguide) {
+    fetchDesignLibrary(function(err, library) {
       if (err) {
-        throw err;
+        return callback(err);
       }
-      if (styleguide) {
-        var analyzed = analyze(styleguide.termSections, [{ text: text }]);
-        var result = [];
-        analyzed.forEach(function(analyzedBlock) {
-          result.push(assembleMatches(analyzedBlock.wordList, analyzedBlock.match));
-        });
-
-        return callback(result);
+      if (library) {
+        var result = {
+          words: getIssues(library.termSections, [{ text: text }])
+            .map(function(textBlock) {
+              return {
+                matches: getMatchesWithSurroundingText(textBlock.wordList, textBlock.match)
+              };
+            })
+        };
+        return callback(null, result);
       }
     }.bind(this));
   }.bind(this);
 
-  var fetchDesignLibrary = function(cb) {
-    if (this.styleguide) {
-      cb(null, this.styleguide)
+  var fetchDesignLibrary = function(callback) {
+    if (this.library) {
+      return callback(null, this.library)
     }
-    //var url = 'https://api.brand.ai/styleguide/' + this.organizationName + '/' + this.styleguideName;
-    var url = 'http://localhost:3001/styleguide/' + this.organizationName + '/' + this.styleguideName;
+    var url = 'https://api.brand.ai/styleguide/' + this.organizationName + '/' + this.libraryName;
+    if (this.key) {
+      url += '?key=' + this.key;
+    }
+    //var url = 'http://localhost:3001/styleguide/' + this.organizationName + '/' + this.libraryName;
     var xhr = new XMLHttpRequest();
     xhr.onload = function() {
       if (xhr.status === 200) {
         if (xhr.response) {
           var response = JSON.parse(xhr.response);
           if (response.success) {
-            this.styleguide = response.result;
-            return cb(null, response.result);
+            this.library = response.result;
+            return callback(null, response.result);
           }
         }
       } else {
-        return cb('Error fetching design library. http status: ' + xhr.status);
+        return callback('Error fetching design library. http status: ' + xhr.status);
       }
     }.bind(this);
 
-    xhr.onerror = function(err) {
-      return cb('could not send request to the server. Error: ' + err.message);
+    xhr.onerror = function() {
+      return callback('could not send request to the server');
     };
 
     xhr.open('GET', url, true);
@@ -53,20 +68,8 @@ brandai.Language = function(organizationName, styleguideName) {
     xhr.send();
   }.bind(this);
 
-  /**
-   * @param termSections - common words and words to avoid to analyze the items against
-   * @param textBlocks - array of text blocks to analyze (see text-service.js for interface)
-   * @return array of analyzed text blocks [{text, term}] (term is the relevant item from termSections)
-   * The number of analyzed blocks might be larger than the number of items because we'll duplicate
-   * the item for each issue found
-   * */
-  function analyze(termSections, textBlocks) {
-    return getIssues(termSections, textBlocks);
-  }
-
   const MATCH_PADDING_CHARS = 40;
-
-  function assembleMatches(words, match) {
+  function getMatchesWithSurroundingText(words, match) {
     var matches = [];
     words.forEach((value, index) => {
       if (value === match) {
@@ -101,17 +104,6 @@ brandai.Language = function(organizationName, styleguideName) {
       }
       return { preText, match: words[value], postText };
     });
-  }
-
-  function normalizeTerm(term) {
-    return term && term.trim().replace(/(,|\.|:)/, '');
-  }
-
-  function getWordList(textBlock) {
-    if (!textBlock || !textBlock.text) {
-      return [];
-    }
-    return textBlock.text.split(' ');
   }
 
   function getIssues(termSections, textBlocks) {
@@ -184,9 +176,18 @@ brandai.Language = function(organizationName, styleguideName) {
         })
       });
     return wordsToAvoidMap;
-
   }
 
+  function normalizeTerm(term) {
+    return term && term.trim().replace(/(,|\.|:|!)/, '');
+  }
+
+  function getWordList(textBlock) {
+    if (!textBlock || !textBlock.text) {
+      return [];
+    }
+    return textBlock.text.split(' ');
+  }
 
   return {
     analyze: _analyze

@@ -22,7 +22,7 @@
 <body class="container">
 
 <div class="main block-margin">
-    <textarea id="user-input"  class="block-margin" rows="3" cols="100">This is some sample text e-mail containing the word: ninja, which is a word to avoid in a default new design library</textarea>
+    <textarea id="user-input"  class="block-margin" rows="3" cols="100">This is some sample with misspellings defined in https://brand.ai/samples/primary-brand: Thank you for visiting our web-site.  Please feel free to address any of our ninja support people and they will get back to you. Please leave your e-mail, and we'll send you and e-mail back.</textarea>
     <div class="block-margin">
         <button id="analyze-action">Analyze</button>
     </div>
@@ -32,15 +32,25 @@
         </ul>
     </div>
 </div>
+<div id="error-message" class="text-danger" />
 <script type=text/javascript>
   $(function() {
     $('#analyze-action').on('click', function() {
-      var languageService = new brandai.Language('org-1', 'primary-brand');
+      $('#error-message').text('');
+      $('#result-list').empty();
+      // the design library for this sample is:
+      // https://brand.ai/samples/primary-brand
+      var languageService = new brandai.Language('samples', 'primary-brand');
       var userInput = $('#user-input').val();
-      languageService.analyze(userInput, function(results) {
-
-        results.forEach(function(matches) {
-          matches.forEach(function(match) {
+      languageService.analyze(userInput, function(err, results) {
+        if (err) {
+          $('#error-message').text(err)
+        }
+        // iterate over all misspellings or words to avoid
+        results.words.forEach(function(word) {
+          // iterate over all instances of misspelling/word to avoid
+          // (e.g a single misspelling might occur more than once)
+          word.matches.forEach(function(match) {
             $('#result-list')
               .append('<li><span class="text-muted">' + match.preText + ' </span><strong class="text-danger">' + match.match + '</strong><span class="text-muted"> ' + match.postText + '</span></li>');
 
