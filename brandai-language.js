@@ -38,19 +38,20 @@ brandai.Language = function(organizationName, libraryName, libraryKey) {
     if (this.library) {
       return callback(null, this.library)
     }
-    var url = 'https://api.brand.ai/styleguide/' + this.organizationName + '/' + this.libraryName;
+    //var url = 'http://localhost:3002/' + this.organizationName+ '/' + this.libraryName +'/style-data.json?exportFormat=list';
+    var url = 'https://assets.brand.ai/' + this.organizationName+ '/' + this.libraryName +'/style-data.json?exportFormat=list';
     if (this.key) {
-      url += '?key=' + this.key;
+      url += '&key=' + this.key;
     }
-    //var url = 'http://localhost:3001/styleguide/' + this.organizationName + '/' + this.libraryName;
+
     var xhr = new XMLHttpRequest();
     xhr.onload = function() {
       if (xhr.status === 200) {
         if (xhr.response) {
           var response = JSON.parse(xhr.response);
-          if (response.success) {
-            this.library = response.result;
-            return callback(null, response.result);
+          if (response.list) {
+            this.library = response.list;
+            return callback(null, this.library);
           }
         }
       } else {
